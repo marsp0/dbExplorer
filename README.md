@@ -5,6 +5,7 @@ Uses MySQL and the MySQLdb module for python. In order the program you have to i
 only used on Macs from the terminal. Install link below :
 
 MySQL - http://dev.mysql.com/downloads/
+
 MySQLdb - https://pypi.python.org/pypi/MySQL-python or use pip :)
 
 TODO :
