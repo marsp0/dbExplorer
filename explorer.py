@@ -18,25 +18,31 @@ class Explorer(object):
 		#start the mysql server
 		#self.start_server()
 		#create the connection
-		#time.sleep(3)
 		self.connection = MySQLdb.connect(host='',
 											user = self.root_user,
 											passwd = self.root_pass,
 											db='test')
 		self.cursor = self.connection.cursor()
 
-	def create_table(self,table_name,col_info):
+	def create_table(self,info_dict):
 		try:
-			statement_start = 'CREATE TABLE {table_name} ('.format(table_name = table_name)
+			sentinel = 2
+			statement_start = 'CREATE TABLE {table_name} ('.format(table_name = info_dict['table_name'])
 			statement_end = ')'
 			statement_mid = ''
-			for key,value in col_info.items():
-				statement_mid += '{col_name} {col_type} ({col_size})\n'.format(col_name = key, col_size = value[1],col_type = value[0])
+			print info_dict
+			for key,value in info_dict.items():
+				if key != 'table_name':
+					if sentinel == len(info_dict):
+						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} {extra}'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default=value[3],extra=value[4])
+					else:
+						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} {extra},'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default=value[3],extra=value[4])
+					sentinel += 1
 			final_statemet = statement_start+statement_mid+statement_end
 			self.cursor.execute(final_statemet)
 			return True
-		except Exception:
-			raise ex.TableExists(table_name)
+		except Exception as e:
+			raise ex.TableExists(info_dict['table_name'])
 
 	def view_table_info(self,table_name):
 		try:
@@ -90,6 +96,7 @@ class Explorer(object):
 			process.send(self.root_pass)
 		except pexpect.EOF:
 			pass
+		time.sleep(2)
 		
 
 if __name__=='__main__':

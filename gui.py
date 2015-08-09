@@ -1,5 +1,7 @@
 import Tkinter as tk
 from collections import OrderedDict
+import tkMessageBox as mb
+import tkFileDialog as fd
 from explorer import *
 
 class Gui(tk.Frame):
@@ -13,10 +15,7 @@ class Gui(tk.Frame):
 
 		'''main'''
 		self.main_display = tk.Frame(self)
-		
-
 		self.table_display = tk.Frame(self)
-
 		self.db_display = tk.Frame(self)
 		
 
@@ -37,7 +36,7 @@ class Gui(tk.Frame):
 		self.table_options = (
 								('Tables',(self.show_tables,)),
 								('View',(self.view_table,)),
-								('Create',(0,)),
+								('Create',(self.create_table,)),
 								('Alter',(0,)),
 								('Delete',(0,)),
 								('Insert',(0,)),
@@ -52,7 +51,10 @@ class Gui(tk.Frame):
 
 		self.explorer = Explorer('root','0899504274')
 
-		self.table_var = tk.StringVar()
+		self.view_table_var = tk.StringVar()
+
+		self.data_type = ('VARCHAR','INT')
+		self.create_vars = {i:[tk.StringVar() for x in xrange(6)] for i in xrange(1,6)}
 
 		self.main_view()
 
@@ -139,15 +141,70 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_options_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_options_display,self.table_var,*tables).grid(row=1,column=1)
+		tk.OptionMenu(self.inner_options_display,self.view_table_var,*tables).grid(row=1,column=1)
 		tk.Button(self.inner_options_display,text='Search',command = self.search_table).grid(row=1,column=2)
 
 	def search_table(self):
 		self.clean_inner_frame(self.inner_table_display)
 		self.inner_table_display.config(bd=2)
-		results = self.explorer.show_table(self.table_var.get())
+		results = self.explorer.show_table(self.view_table_var.get())
 		self.create_labels(self.inner_table_display,results)
 
+	def create_table(self):
+		self.form_frame = tk.Frame(self.inner_parent_display)
+		self.clean_inner_parent()
+		self.inner_options_display.pack()
+		self.form_frame.pack()
+		tk.Label(self.inner_options_display,text='Table Name').grid(row=1,column=1)
+		tk.Entry(self.inner_options_display,textvariable=self.view_table_var).grid(row=1,column=2)
+		
+
+		tk.Label(self.form_frame,text='Name',width=13,bd=2,relief='raised',pady=3).grid(row=1,column=1)
+		tk.Label(self.form_frame,text='Type',width=18,relief='raised',pady=3).grid(row=1,column=2)
+		tk.Label(self.form_frame,text='Size',width=5,relief='raised',pady=3).grid(row=1,column=3)
+		tk.Label(self.form_frame,text='Null',width=18,relief='raised',pady=3).grid(row=1,column=4)
+		tk.Label(self.form_frame,text='Default',width=12,relief='raised',pady=3).grid(row=1,column=5)
+		tk.Label(self.form_frame,text='Extra',width=12,relief='raised',pady=3).grid(row=1,column=6)
+
+		for i in xrange(2,7):
+			tk.Entry(self.form_frame,textvariable = self.create_vars[i-1][0],width=12).grid(row=i,column=1)
+			tk.OptionMenu(self.form_frame,self.create_vars[i-1][1],*self.data_type).grid(row=i,column=2)
+			tk.Entry(self.form_frame,textvariable = self.create_vars[i-1][2],width=3).grid(row=i,column=3)
+			tk.OptionMenu(self.form_frame,self.create_vars[i-1][3],'NULL','NOT NULL').grid(row=i,column=4)
+			tk.Entry(self.form_frame,textvariable=self.create_vars[i-1][4],width=11).grid(row=i,column=5)
+			tk.Entry(self.form_frame,textvariable=self.create_vars[i-1][5],width=11).grid(row=i,column=6)
+
+		tk.Button(self.form_frame,text='Save',command = self.save_table).grid(row=7,column=6)
+	
+	def save_table(self):
+		result = self.prepare_check()
+		if result:
+			try:
+				self.explorer.create_table(result)
+				self.clean_create_vars()
+				mb.showinfo('Success','The table is created :)')
+			except ex.TableExists:
+				mb.showwarning('Error','The name of the Table already exists in this database')
+		else:
+			mb.showwarning('Error','Some of the fields you have entered are empty or contain an invalid value. Check again :)')
+
+	def clean_create_vars(self):
+		for col in self.create_vars:
+			for item in self.create_vars[col]:
+				item.set('')
+
+	def prepare_check(self):
+		to_return = {}
+		if self.view_table_var.get() == '' or all(self.create_vars[check][0].get() == '' for check in self.create_vars):
+			return False
+		to_return['table_name'] = self.view_table_var.get()
+		for col in self.create_vars:
+			name = self.create_vars[col][0].get()
+			if name != '' and (self.create_vars[col][1].get() == '' or self.create_vars[col][2].get() == '' or self.create_vars[col][3].get() == ''):
+				return False
+			if name != '':
+				to_return[name] = [var.get() for var in self.create_vars[col][1:]]
+		return to_return
 
 	def clean_inner_frame(self,frame):
 		for child in frame.winfo_children():
