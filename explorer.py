@@ -2,6 +2,7 @@ import MySQLdb
 import pexpect
 import excep as ex
 import time
+import sys
 
 # Start the server from the terminal sudo /usr/local/mysql/support-files/mysql.server start
 # Stop the server from the terminal sudo /usr/local/mysql/support-files/mysql.server stop
@@ -17,6 +18,7 @@ class Explorer(object):
 		self.root_pass = root_password
 		#start the mysql server
 		#self.start_server()
+		#time.sleep(2)
 		#create the connection
 		self.connection = MySQLdb.connect(host='',
 											user = self.root_user,
@@ -62,6 +64,32 @@ class Explorer(object):
 		except Exception:
 			raise ex.TableDoesntExist(table_name)
 
+	def insert_into(self,table_name,values):
+		columns,types = self.get_columns(table_name,1)
+		start_statement = 'INSERT INTO {} ('.format(table_name)
+		columns = ','.join(columns)
+		mid_statement = ') VALUES ('
+		values = ','.join(self.check_values(values,types))
+		end_statement = ')'
+		final = start_statement+columns+mid_statement+values+end_statement
+		self.cursor.execute(final)
+
+	def check_values(self,values,types):	
+		print types
+		how_many = [x for x in xrange(len(types)) if types[x].startswith('int')]
+		values = ['"'+value+'"' if values.index(value) not in how_many else value for value in values]
+		return values
+
+	def get_columns(self,table_name,option=None):
+		statement = 'DESCRIBE {}'.format(table_name)
+		self.cursor.execute(statement)
+		fetched = self.cursor.fetchall()
+		columns = [column[0] for column in fetched]
+		if option :
+			types = [column[1] for column in fetched]
+			return columns,types
+		return columns
+
 	def show_tables(self):
 		statement = 'SHOW TABLES'
 		self.cursor.execute(statement)
@@ -82,6 +110,10 @@ class Explorer(object):
 				to_return[checker[index]].append(tupl[index])
 		return to_return
 
+	def delete_table(self,table_name):
+		statement = 'DROP TABLE {}'.format(table_name)
+		self.cursor.execute(statement)
+
 	def show_dbs(self):
 		statement = 'SHOW DATABASES'
 		self.cursor.execute(statement)
@@ -91,18 +123,11 @@ class Explorer(object):
 	def start_server(self):
 		''' VERY IMPORTANT NOTE : If the server is started manually it has to be closed manually'''
 		process = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server start')
+		#used for debugging purposes
+		process.logfile=sys.stdout
 		try:
 			process.expect('Password:')
-			process.send(self.root_pass)
+			process.sendline(self.root_pass)
 		except pexpect.EOF:
 			pass
-		time.sleep(2)
-		
-
-if __name__=='__main__':
-	p = Explorer('root','0899504274')
-	#table_info = {'col1':('varchar','255')}
-	#table_name = 'ssa'
-	#p.create_table('ssa',table_info)
-	print p.show_table('ssa')
 	

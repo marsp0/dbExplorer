@@ -22,14 +22,14 @@ class Gui(tk.Frame):
 		self.main_options = (
 							('DB',(self.packer,(self.main_display,self.db_view))),
 							('Table',(self.packer,(self.main_display,self.table_view))),
-							('Export',(0,)),
+							('Export',(self.not_implemented,)),
 							('Quit',(self.quit,))
 							)
 
 		self.db_options = (
 							('Show DBs',(self.show_dbs,)),
-							('Change DB',(0,)),
-							('Delete DB',(0,)),
+							('Change DB',(self.not_implemented,)),
+							('Delete DB',(self.not_implemented,)),
 							('Back',(self.packer,(self.db_display,self.main_view)))
 						)
 
@@ -37,11 +37,11 @@ class Gui(tk.Frame):
 								('Tables',(self.show_tables,)),
 								('View',(self.view_table,)),
 								('Create',(self.create_table,)),
-								('Alter',(0,)),
-								('Delete',(0,)),
-								('Insert',(0,)),
-								('Update',(0,)),
-								('Select',(0,)),
+								('Alter',(self.not_implemented,)),
+								('Delete',(self.delete_table,)),
+								('Insert',(self.insert,)),
+								('Update',(self.not_implemented,)),
+								('Select',(self.not_implemented,)),
 								('Back',(self.packer,(self.table_display,self.main_view))),
 							)
 		self.main_explanations = (('Relational DB -' , 'collection of information stored in a tabular format. The data can be easily stored and retrieved.'),
@@ -78,15 +78,30 @@ class Gui(tk.Frame):
 
 	def create_labels(self,frame,options):
 		current = 1
-		keys = options.keys()
-		width = 80 / len(keys)
-		while current != len(keys)+1:
-			row=2
-			tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)
-			for value in options[keys[current-1]]:
-				tk.Label(frame,text=value,bd=1,relief='raised',width=width,pady=3).grid(row=row,column=current)
-				row += 1
-			current += 1
+		if isinstance(options,dict):
+			keys = options.keys()
+			width = 80 / len(keys)
+			while current != len(keys)+1:
+				row=2
+				tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)
+				for value in options[keys[current-1]]:
+					tk.Label(frame,text=value,bd=1,relief='raised',width=width,pady=3).grid(row=row,column=current)
+					row += 1
+				current += 1
+		else:
+			width = 80/len(options)
+			for item in options:
+				tk.Label(frame,text=item,bd=2,relief='raised',width=width).grid(row=1,column=current)
+				current += 1
+
+	def create_insert_form(self,len_cols):
+		self.insert_vars = [tk.StringVar() for x in xrange(len_cols)]
+		width = (80/len_cols) - 1
+		for index in xrange(1,len_cols+1):
+
+			tk.Entry(self.insert_form_frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
+		tk.Button(self.insert_form_frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
+
 
 	def main_view(self):
 		self.master.title('DB Explorer')
@@ -149,6 +164,7 @@ class Gui(tk.Frame):
 		self.inner_table_display.config(bd=2)
 		results = self.explorer.show_table(self.view_table_var.get())
 		self.create_labels(self.inner_table_display,results)
+		self.view_table_var.set('')
 
 	def create_table(self):
 		self.form_frame = tk.Frame(self.inner_parent_display)
@@ -192,6 +208,7 @@ class Gui(tk.Frame):
 		for col in self.create_vars:
 			for item in self.create_vars[col]:
 				item.set('')
+		self.view_table_var.set('')
 
 	def prepare_check(self):
 		to_return = {}
@@ -225,12 +242,51 @@ class Gui(tk.Frame):
 			else:
 				child.destroy()
 
+	def delete_table(self):
+		self.clean_inner_parent()
+		self.inner_options_display.pack()
+		tables = self.explorer.show_tables()['Name']
+		tk.OptionMenu(self.inner_options_display,self.view_table_var,*tables).grid(row=1,column=1)
+		tk.Button(self.inner_options_display,text='Delete',command = self.del_table).grid(row=1,column=2)
+
+	def del_table(self):
+		table_name = self.view_table_var.get()
+		self.explorer.delete_table(table_name)
+		self.view_table_var.set('')
+		mb.showinfo('Table Deleted','The {} table was successfuly deleted'.format(table_name))
+
+	def insert(self):
+		self.clean_inner_parent()
+		self.inner_options_display.pack()
+		self.insert_form_frame = tk.Frame(self.inner_parent_display,bd=2,relief='raised')
+		self.insert_form_frame.pack()
+		tables = self.explorer.show_tables()['Name']
+		tk.OptionMenu(self.inner_options_display,self.view_table_var,*tables).grid(row=1,column=1)
+		tk.Button(self.inner_options_display,text='Check',command = self.insert_form).grid(row=1,column=2)
+
+	def insert_form(self):
+		if self.view_table_var.get() == '':
+			mb.showwarning('Error','You have to select a table')
+		else:
+			self.clean_inner_frame(self.insert_form_frame)
+			columns = self.explorer.get_columns(self.view_table_var.get())
+			self.create_labels(self.insert_form_frame,columns)
+			self.create_insert_form(len(columns))
+
+	def save_insert(self):
+		#todo : check the values if there is 
+		self.explorer.insert_into(self.view_table_var.get(),[var.get() for var in self.insert_vars])
+		self.view_table_var.set('')
+
+
 	def packer(self,to_unpack,to_pack):
 		for child in to_unpack.winfo_children():
 			child.destroy()
 		to_unpack.pack_forget()
 		to_pack()
 
+	def not_implemented(self):
+		mb.showwarning('Error','The option is not yet implemented :(')
 
 	def quit(self):
 		self.master.quit()
