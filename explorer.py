@@ -114,6 +114,14 @@ class Explorer(object):
 		statement = 'DROP TABLE {}'.format(table_name)
 		self.cursor.execute(statement)
 
+	def alter_table(self,option,table_name,*args):
+		if option == 'add':
+			statement = 'ALTER TABLE {} ADD {} {}({})'.format(table_name,*args)
+		elif option == 'drop':
+			statement = 'ALTER TABLE {} DROP COLUMN {}'.format(table_name,*args)
+		self.cursor.execute(statement)
+
+
 	def show_dbs(self):
 		statement = 'SHOW DATABASES'
 		self.cursor.execute(statement)
@@ -122,12 +130,13 @@ class Explorer(object):
 
 	def start_server(self):
 		''' VERY IMPORTANT NOTE : If the server is started manually it has to be closed manually'''
-		process = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server start')
-		#used for debugging purposes
-		process.logfile=sys.stdout
+		process = pexpect.spawn('sudo -v')
 		try:
 			process.expect('Password:')
 			process.sendline(self.root_pass)
 		except pexpect.EOF:
 			pass
+		process2 = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server start')
+			
+		
 	

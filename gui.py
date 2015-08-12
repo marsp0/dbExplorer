@@ -37,7 +37,7 @@ class Gui(tk.Frame):
 								('Tables',(self.show_tables,)),
 								('View',(self.view_table,)),
 								('Create',(self.create_table,)),
-								('Alter',(self.not_implemented,)),
+								('Alter',(self.alter_view,)),
 								('Delete',(self.delete_table,)),
 								('Insert',(self.insert,)),
 								('Update',(self.not_implemented,)),
@@ -52,6 +52,9 @@ class Gui(tk.Frame):
 		self.explorer = Explorer('root','0899504274')
 
 		self.view_table_var = tk.StringVar()
+		self.column_var = tk.StringVar()
+		self.alter_action = tk.StringVar()
+		self.alter_add_vars = [tk.StringVar() for x in xrange(3)]
 
 		self.data_type = ('VARCHAR','INT')
 		self.create_vars = {i:[tk.StringVar() for x in xrange(6)] for i in xrange(1,6)}
@@ -94,13 +97,13 @@ class Gui(tk.Frame):
 				tk.Label(frame,text=item,bd=2,relief='raised',width=width).grid(row=1,column=current)
 				current += 1
 
-	def create_insert_form(self,len_cols):
+	def create_insert_form(self,frame,len_cols):
 		self.insert_vars = [tk.StringVar() for x in xrange(len_cols)]
 		width = (80/len_cols) - 1
 		for index in xrange(1,len_cols+1):
 
-			tk.Entry(self.insert_form_frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
-		tk.Button(self.insert_form_frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
+			tk.Entry(frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
+		tk.Button(frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
 
 
 	def main_view(self):
@@ -271,12 +274,53 @@ class Gui(tk.Frame):
 			self.clean_inner_frame(self.insert_form_frame)
 			columns = self.explorer.get_columns(self.view_table_var.get())
 			self.create_labels(self.insert_form_frame,columns)
-			self.create_insert_form(len(columns))
+			self.create_insert_form(self.insert_form_frame,len(columns))
 
 	def save_insert(self):
 		#todo : check the values if there is 
 		self.explorer.insert_into(self.view_table_var.get(),[var.get() for var in self.insert_vars])
 		self.view_table_var.set('')
+
+	def alter_view(self):
+		self.clean_inner_parent()
+		self.inner_options_display.pack()
+		self.alter_frame = tk.Frame(self.inner_parent_display,bd=2,relief='raised')
+		tables = self.explorer.show_tables()['Name']
+		tk.OptionMenu(self.inner_options_display,self.view_table_var,*tables).grid(row=1,column=1)
+		tk.OptionMenu(self.inner_options_display,self.alter_action,'Add','Drop','Alter').grid(row=1,column=2)
+		tk.Button(self.inner_options_display,text='Continue',command = self.alter_table).grid(row=1,column=4)
+
+	def alter_table(self):
+		self.clean_inner_frame(self.alter_frame)
+		if self.view_table_var.get() == '' or self.alter_action.get() == '':
+			mb.showwarning('Error','One of the values provided is incorect :(')
+		else:
+			table_name = self.view_table_var.get()
+			action = self.alter_action.get()
+			columns,types = self.explorer.get_columns(table_name,1) 
+			if action == 'Add':
+				tk.Label(self.alter_frame,text='Column Name',width=26,bd=2,relief='raised',pady=3).grid(row=1,column=1)
+				tk.Label(self.alter_frame,text='Column Type',width=26,bd=2,relief='raised',pady=3).grid(row=1,column=2)
+				tk.Label(self.alter_frame,text='Column Size',width=26,bd=2,relief='raised',pady=3).grid(row=1,column=3)
+
+				tk.Entry(self.alter_frame,width=25,textvariable=self.alter_add_vars[0]).grid(row=2,column=1)
+				tk.OptionMenu(self.alter_frame,self.alter_add_vars[1],'VARCHAR','INT').grid(row=2,column=2)
+				tk.Entry(self.alter_frame,width=25,textvariable=self.alter_add_vars[2]).grid(row=2,column=3)
+				tk.Button(self.alter_frame,text='Add',command = lambda : self.alter('add',table_name)).grid(row=3,column=3)
+			elif action == 'Drop':
+				row = 0
+				for column in columns:
+					tk.Label(self.alter_frame,text=column,width = 56,bd=2,relief='raised',pady=3).grid(row=row,columns=1)
+					tk.Button(self.alter_frame,text='Drop',width = 20,command = lambda col = column: self.alter('drop',table_name,col)).grid(row=row,column=2)
+					row += 1
+			elif action == 'Alter':
+				mb.showwarning('Error','This option is not yet implemented :(')
+
+	def alter(self,option,table_name,*args):
+		if option == 'add':
+			self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
+		elif option == 'drop':
+			self.explorer.alter_table('drop',table_name,*args)
 
 
 	def packer(self,to_unpack,to_pack):
