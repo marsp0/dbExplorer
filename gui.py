@@ -41,7 +41,7 @@ class Gui(tk.Frame):
 								('Delete',(self.delete_table,)),
 								('Insert',(self.insert,)),
 								('Update',(self.update_view,)),
-								('Select',(self.not_implemented,)),
+								('Select',(self.select_view,)),
 								('Back',(self.packer,(self.table_main_display,self.main_view))),
 							)
 		self.main_explanations = (('Relational DB -' , 'collection of information stored in a tabular format. The data can be easily stored and retrieved.'),
@@ -58,6 +58,8 @@ class Gui(tk.Frame):
 
 		self.update_new_var = tk.StringVar()
 		self.update_old_var = tk.StringVar()
+
+		self.select_val_var = tk.StringVar()
 
 		self.data_type = ('VARCHAR','INT')
 		self.create_table_vars = {i:[tk.StringVar() for x in xrange(6)] for i in xrange(1,6)}
@@ -346,6 +348,41 @@ class Gui(tk.Frame):
 		self.update_new_var.set('')
 		mb.showinfo('Success','The row was successfuly updated')
 
+	def select_view(self):
+		self.clean_inner_parent()
+		self.inner_first_display.pack()
+		tables = self.explorer.show_tables()['Name']
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
+		self.select_button = tk.Button(self.inner_first_display,text='Continue',command = self.display_select_options)
+		self.select_button.grid(row=1,column=4)
+
+	def display_select_options(self):
+		if self.table_name_var.get() == '':
+			mb.showwarning('Error','Please select a table')
+		else:
+			table_name = self.table_name_var.get()
+			columns = self.explorer.get_columns(table_name)
+			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=2)
+			self.select_button.config(command = lambda : self.display_select(table_name))
+
+	def display_select(self,table_name):
+		if self.column_var.get() == '':
+			mb.showwarning('Error','Please select a column from the list')
+		else:
+			self.inner_second_display.pack()
+			self.inner_second_display.config(bd=2,relief='raised')
+			col_name = self.column_var.get()
+			values = self.explorer.get_values(table_name,col_name)
+			tk.OptionMenu(self.inner_first_display,self.select_val_var,*values).grid(row=1,column=3)
+			self.select_button.config(command = lambda : self.display_select_results(table_name,col_name))
+
+	def display_select_results(self,table_name,col_name):
+		if self.select_val_var.get() == '':
+			mb.showwarning('Error','Please select a value from the list')
+		else:
+			value = self.select_val_var.get()
+			to_display = self.explorer.select(table_name,col_name,value)
+			self.create_labels(self.inner_second_display,to_display)
 
 	''' HELPERS '''
 
@@ -363,7 +400,7 @@ class Gui(tk.Frame):
 	def clean_inner_parent(self):
 		for child in self.inner_parent_display.winfo_children():
 			if isinstance(child,tk.Frame):
-				child.configure(bd=0)
+				child.config(bd=0)
 				try:
 					child.pack_forget()
 				except:
@@ -385,7 +422,7 @@ class Gui(tk.Frame):
 		mb.showwarning('Error','The option is not yet implemented :(')
 
 	def quit(self):
-		self.explorer.stop_server()
+		#self.explorer.stop_server()
 		self.master.quit()
 
 if __name__=='__main__':

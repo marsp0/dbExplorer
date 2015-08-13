@@ -17,8 +17,8 @@ class Explorer(object):
 		#get the password for the connection object and to start the server
 		self.root_pass = root_password
 		#start the mysql server
-		self.start_server()
-		time.sleep(2)
+		#self.start_server()
+		#time.sleep(8)
 		#create the connection
 		self.connection = MySQLdb.connect(host='',
 											user = self.root_user,
@@ -137,6 +137,23 @@ class Explorer(object):
 		statement = 'UPDATE {} SET {}={} WHERE {}={}'.format(table_name,col_name,new_var,col_name,old_var)
 		self.cursor.execute(statement)
 
+	def select(self,table_name,col_name,value):
+		desc_statement = 'DESCRIBE {}'.format(table_name)
+		self.cursor.execute(desc_statement)
+		col_info = self.cursor.fetchall()
+		to_return = {}
+		for column in col_info:
+			to_return[column[0]] = []
+			if column[0] == col_name:
+				if not column[1].startswith('int'):
+					value = '"' + value + '"'
+		statement = 'SELECT * FROM {} WHERE {}={}'.format(table_name,col_name,value)
+		self.cursor.execute(statement)
+		keys = to_return.keys()
+		for tupl in self.cursor.fetchall():
+			for index in xrange(len(tupl)):
+				to_return[keys[index]].append(tupl[index])
+		return to_return
 
 	def show_dbs(self):
 		statement = 'SHOW DATABASES'
