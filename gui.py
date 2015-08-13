@@ -40,7 +40,7 @@ class Gui(tk.Frame):
 								('Alter',(self.alter_view,)),
 								('Delete',(self.delete_table,)),
 								('Insert',(self.insert,)),
-								('Update',(self.not_implemented,)),
+								('Update',(self.update_view,)),
 								('Select',(self.not_implemented,)),
 								('Back',(self.packer,(self.table_main_display,self.main_view))),
 							)
@@ -55,6 +55,9 @@ class Gui(tk.Frame):
 		self.column_var = tk.StringVar()
 		self.alter_action_var = tk.StringVar()
 		self.alter_add_vars = [tk.StringVar() for x in xrange(3)]
+
+		self.update_new_var = tk.StringVar()
+		self.update_old_var = tk.StringVar()
 
 		self.data_type = ('VARCHAR','INT')
 		self.create_table_vars = {i:[tk.StringVar() for x in xrange(6)] for i in xrange(1,6)}
@@ -259,7 +262,10 @@ class Gui(tk.Frame):
 	def save_insert(self):
 		#todo : check the values if there is 
 		self.explorer.insert_into(self.table_name_var.get(),[var.get() for var in self.insert_vars])
+		mb.showinfo('Success','The row was inserted in the table')
 		self.table_name_var.set('')
+		for var in self.insert_vars:
+			var.set('')
 
 	def alter_view(self):
 		self.clean_inner_parent()
@@ -300,6 +306,47 @@ class Gui(tk.Frame):
 		elif option == 'drop':
 			self.explorer.alter_table('drop',table_name,*args)
 
+	def update_view(self):
+		self.clean_inner_parent()
+		self.inner_first_display.pack()
+		tables = self.explorer.show_tables()['Name']
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
+		self.update_button = tk.Button(self.inner_first_display,text='Continue',command=self.update_view_cols)
+		self.update_button.grid(row=1,column=3)
+
+	def update_view_cols(self):
+		if self.table_name_var.get() == '':
+			mb.showwarning('Error','Please select a table')
+		else:
+			table_name = self.table_name_var.get()
+			columns = self.explorer.get_columns(table_name)
+			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=2)
+			self.update_button.config(command = lambda : self.display_update_options(table_name))
+
+	def display_update_options(self,table_name):
+		if self.column_var.get() == '':
+			mb.showwarning('Error','Please select a column from the list')
+		else:
+			column = self.column_var.get()
+			self.clean_inner_frame(self.inner_second_display)
+			self.inner_second_display.config(bd=2,relief='raised')
+			values = self.explorer.get_values(table_name, column)
+			self.create_labels(self.inner_second_display,('New Value','Old Value'))
+			tk.Entry(self.inner_second_display,textvariable=self.update_new_var,width=39).grid(row=2,column=1)
+			tk.OptionMenu(self.inner_second_display,self.update_old_var,*values).grid(row=2,column=2)
+			tk.Button(self.inner_second_display,text='Update',command = lambda : self.update(table_name,column)).grid(row=3,column=2)
+
+	def update(self,table_name,column):
+		new_var = self.update_new_var.get()
+		old_var = self.update_old_var.get()
+		self.explorer.update(table_name,column,new_var,old_var)
+		self.table_name_var.set('')
+		self.column_var.set('')
+		self.update_old_var.set('')
+		self.update_new_var.set('')
+		mb.showinfo('Success','The row was successfuly updated')
+
+
 	''' HELPERS '''
 
 	def clean_create_table_vars(self):
@@ -338,6 +385,7 @@ class Gui(tk.Frame):
 		mb.showwarning('Error','The option is not yet implemented :(')
 
 	def quit(self):
+		self.explorer.stop_server()
 		self.master.quit()
 
 if __name__=='__main__':

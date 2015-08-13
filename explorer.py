@@ -17,8 +17,8 @@ class Explorer(object):
 		#get the password for the connection object and to start the server
 		self.root_pass = root_password
 		#start the mysql server
-		#self.start_server()
-		#time.sleep(2)
+		self.start_server()
+		time.sleep(2)
 		#create the connection
 		self.connection = MySQLdb.connect(host='',
 											user = self.root_user,
@@ -75,7 +75,6 @@ class Explorer(object):
 		self.cursor.execute(final)
 
 	def check_values(self,values,types):	
-		print types
 		how_many = [x for x in xrange(len(types)) if types[x].startswith('int')]
 		values = ['"'+value+'"' if values.index(value) not in how_many else value for value in values]
 		return values
@@ -121,6 +120,23 @@ class Explorer(object):
 			statement = 'ALTER TABLE {} DROP COLUMN {}'.format(table_name,*args)
 		self.cursor.execute(statement)
 
+	def get_values(self,table_name,column_name):
+		statement = 'SELECT {} FROM {}'.format(column_name,table_name)
+		self.cursor.execute(statement)
+		return [x[0] for x in self.cursor.fetchall()]
+
+	def update(self,table_name,col_name,new_var,old_var):
+		desc_statement = 'DESCRIBE {}'.format(table_name)
+		self.cursor.execute(desc_statement)
+		col_info = self.cursor.fetchall()
+		for column in col_info:
+			if column[0] == col_name:
+				if not column[1].startswith('int'):
+					old_var = '"' + old_var + '"'
+					new_var = '"' + new_var + '"'
+		statement = 'UPDATE {} SET {}={} WHERE {}={}'.format(table_name,col_name,new_var,col_name,old_var)
+		self.cursor.execute(statement)
+
 
 	def show_dbs(self):
 		statement = 'SHOW DATABASES'
@@ -131,12 +147,22 @@ class Explorer(object):
 	def start_server(self):
 		''' VERY IMPORTANT NOTE : If the server is started manually it has to be closed manually'''
 		process = pexpect.spawn('sudo -v')
+		#process.logfile = sys.stdout
 		try:
 			process.expect('Password:')
 			process.sendline(self.root_pass)
 		except pexpect.EOF:
 			pass
 		process2 = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server start')
-			
-		
-	
+		#process2.logfile = sys.stdout
+
+	def stop_server(self):
+		self.connection.commit()
+		self.connection.close()
+		process = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server stop')
+		#process.logfile = sys.stdout
+		try:
+			process.expect('Password:')
+			process.sendline(self.root_pass)
+		except pexpect.EOF:
+			pass
