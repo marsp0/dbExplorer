@@ -17,14 +17,15 @@ class Explorer(object):
 		#get the password for the connection object and to start the server
 		self.root_pass = root_password
 		#start the mysql server
-		#self.start_server()
-		#time.sleep(8)
+		self.start_server()
+		time.sleep(8)
 		#create the connection
 		self.connection = MySQLdb.connect(host='',
-											user = self.root_user,
-											passwd = self.root_pass,
-											db='test')
+										user = self.root_user,
+										passwd = self.root_pass,
+										db='test')
 		self.cursor = self.connection.cursor()
+
 
 	def create_table(self,info_dict):
 		try:
@@ -32,18 +33,25 @@ class Explorer(object):
 			statement_start = 'CREATE TABLE {table_name} ('.format(table_name = info_dict['table_name'])
 			statement_end = ')'
 			statement_mid = ''
-			print info_dict
-			for key,value in info_dict.items():
+			items = info_dict.items()
+			for key,value in items:
 				if key != 'table_name':
 					if sentinel == len(info_dict):
-						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} {extra}'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default=value[3],extra=value[4])
+						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} '.format(col_name = key ,col_type = value[0], col_size = value[1], null = value[2],default = 'DEFAULT ' + '"' + value[3] + '"' if value[0] == 'VARCHAR' else 'DEFAULT ' + value[3])
 					else:
-						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} {extra},'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default=value[3],extra=value[4])
+						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} ,'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default='DEFAULT ' + '"' + value[3] + '"' if value[0] == 'VARCHAR' else 'DEFAULT ' + value[3])
 					sentinel += 1
-			final_statemet = statement_start+statement_mid+statement_end
-			self.cursor.execute(final_statemet)
+			
+			pk_list = [key for key,value in items if value[4] == 'Yes']
+			if len(pk_list) > 1:
+				statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],','.join(pk_list))
+			elif len(pk_list) == 1:
+				statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],pk_list[0])
+			final_statement = statement_start+statement_mid+statement_end
+			self.cursor.execute(final_statement)
 			return True
 		except Exception as e:
+			print e
 			raise ex.TableExists(info_dict['table_name'])
 
 	def view_table_info(self,table_name):

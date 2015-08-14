@@ -193,7 +193,7 @@ class Gui(tk.Frame):
 		tk.Label(self.inner_second_display,text='Size',width=5,relief='raised',pady=3).grid(row=1,column=3)
 		tk.Label(self.inner_second_display,text='Null',width=18,relief='raised',pady=3).grid(row=1,column=4)
 		tk.Label(self.inner_second_display,text='Default',width=12,relief='raised',pady=3).grid(row=1,column=5)
-		tk.Label(self.inner_second_display,text='Extra',width=12,relief='raised',pady=3).grid(row=1,column=6)
+		tk.Label(self.inner_second_display,text='Prime Key',width=12,relief='raised',pady=3).grid(row=1,column=6)
 
 		for i in xrange(2,7):
 			tk.Entry(self.inner_second_display,textvariable = self.create_table_vars[i-1][0],width=12).grid(row=i,column=1)
@@ -201,7 +201,8 @@ class Gui(tk.Frame):
 			tk.Entry(self.inner_second_display,textvariable = self.create_table_vars[i-1][2],width=3).grid(row=i,column=3)
 			tk.OptionMenu(self.inner_second_display,self.create_table_vars[i-1][3],'NULL','NOT NULL').grid(row=i,column=4)
 			tk.Entry(self.inner_second_display,textvariable=self.create_table_vars[i-1][4],width=11).grid(row=i,column=5)
-			tk.Entry(self.inner_second_display,textvariable=self.create_table_vars[i-1][5],width=11).grid(row=i,column=6)
+			tk.OptionMenu(self.inner_second_display,self.create_table_vars[i-1][5],'Yes','No').grid(row=i,column=6)
+			self.create_table_vars[i-1][5].set('No')
 
 		tk.Button(self.inner_second_display,text='Save',command = self.save_table).grid(row=7,column=6)
 	
@@ -422,7 +423,7 @@ class Gui(tk.Frame):
 		mb.showwarning('Error','The option is not yet implemented :(')
 
 	def quit(self):
-		#self.explorer.stop_server()
+		self.explorer.stop_server()
 		self.master.quit()
 
 if __name__=='__main__':
