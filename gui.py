@@ -66,51 +66,6 @@ class Gui(tk.Frame):
 
 		self.main_view()
 
-	def create_buttons(self,frame,options):
-		column = 1
-		for key,value in options:
-			if len(value) > 1:
-				function = value[0]
-				args = value[1]
-				tk.Button(frame,text = key,command = lambda args = args: function(*args) ).grid(row=0,column=column)
-			else:
-				tk.Button(frame,text=key,command = value[0]).grid(row=0,column=column)
-			column += 1
-
-	def create_main_labels(self,frame,options):
-		row=3
-		for name,desc in options:
-			tk.Label(frame,text=name,width=15).grid(row=row,column=1)
-			tk.Label(frame,text=desc,width=65,wraplength=300).grid(row=row,column=2)
-			row+=1
-
-	def create_labels(self,frame,options):
-		current = 1
-		if isinstance(options,dict):
-			keys = options.keys()
-			width = 80 / len(keys)
-			while current != len(keys)+1:
-				row=2
-				tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)
-				for value in options[keys[current-1]]:
-					tk.Label(frame,text=value,bd=1,relief='raised',width=width,pady=3).grid(row=row,column=current)
-					row += 1
-				current += 1
-		else:
-			width = 80/len(options)
-			for item in options:
-				tk.Label(frame,text=item,bd=2,relief='raised',width=width).grid(row=1,column=current)
-				current += 1
-
-	def create_insert_form(self,frame,len_cols):
-		self.insert_vars = [tk.StringVar() for x in xrange(len_cols)]
-		width = (80/len_cols) - 1
-		for index in xrange(1,len_cols+1):
-
-			tk.Entry(frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
-		tk.Button(frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
-
-
 	def main_view(self):
 		self.master.title('DB Explorer')
 		'''create inside frames and pack them'''
@@ -160,10 +115,10 @@ class Gui(tk.Frame):
 
 	def show_tables(self):
 		self.clean_inner_parent()
-		self.inner_third_display.pack()
-		self.inner_third_display.config(bd=2)
+		self.inner_second_display.pack()
+		self.inner_second_display.config(bd=2,relief='raised')
 		to_display = self.explorer.show_tables()
-		self.create_labels(self.inner_third_display,to_display)
+		self.create_labels(self.inner_second_display,to_display)
 
 	def view_table(self):
 		self.clean_inner_parent()
@@ -171,13 +126,34 @@ class Gui(tk.Frame):
 		tables = self.explorer.show_tables()['Name']
 		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
 		tk.Button(self.inner_first_display,text='Search',command = self.search_table).grid(row=1,column=2)
+		tk.Button(self.inner_first_display,text='Describe',command = self.describe_table).grid(row=1,column=3)
+
+	def describe_table(self):
+		if self.table_name_var.get() == '':
+			mb.showwarning('Error','Please select a table from the list')
+		else:
+			self.clean_inner_frame(self.inner_second_display)
+			self.inner_second_display.config(bd=2,relief='raised')
+			results = self.explorer.view_table_info(self.table_name_var.get())
+			order = results['Order']
+			del results['Order']
+			col = 1
+			width = 80/len(results)-1
+			for item in order:
+				tk.Label(self.inner_second_display,width = width,text=item,bd=3,relief='raised',pady=3).grid(row=0,column=col)
+				for index in xrange(1,len(results[item])+1):
+					tk.Label(self.inner_second_display,text=results[item][index-1],pady=3,bd=2,relief='raised',width = width).grid(row=index,column=col)
+				col += 1
 
 	def search_table(self):
-		self.clean_inner_frame(self.inner_third_display)
-		self.inner_third_display.config(bd=2)
-		results = self.explorer.show_table(self.table_name_var.get())
-		self.create_labels(self.inner_third_display,results)
-		self.table_name_var.set('')
+		if self.table_name_var.get() == '':
+			mb.showwarning('Error','Please select a table from the list')
+		else:
+			self.clean_inner_frame(self.inner_second_display)
+			self.inner_second_display.config(bd=2,relief='raised')
+			results = self.explorer.show_table(self.table_name_var.get())
+			self.create_labels(self.inner_second_display,results)
+			self.table_name_var.set('')
 
 	def create_table(self):
 		self.clean_inner_parent()
@@ -371,7 +347,6 @@ class Gui(tk.Frame):
 			mb.showwarning('Error','Please select a column from the list')
 		else:
 			self.inner_second_display.pack()
-			self.inner_second_display.config(bd=2,relief='raised')
 			col_name = self.column_var.get()
 			values = self.explorer.get_values(table_name,col_name)
 			tk.OptionMenu(self.inner_first_display,self.select_val_var,*values).grid(row=1,column=3)
@@ -382,10 +357,56 @@ class Gui(tk.Frame):
 			mb.showwarning('Error','Please select a value from the list')
 		else:
 			value = self.select_val_var.get()
+			self.inner_second_display.config(bd=2,relief='raised')
 			to_display = self.explorer.select(table_name,col_name,value)
 			self.create_labels(self.inner_second_display,to_display)
 
 	''' HELPERS '''
+
+	def create_buttons(self,frame,options):
+		column = 1
+		for key,value in options:
+			if len(value) > 1:
+				function = value[0]
+				args = value[1]
+				tk.Button(frame,text = key,command = lambda args = args: function(*args) ).grid(row=0,column=column)
+			else:
+				tk.Button(frame,text=key,command = value[0]).grid(row=0,column=column)
+			column += 1
+
+	def create_main_labels(self,frame,options):
+		row=3
+		for name,desc in options:
+			tk.Label(frame,text=name,width=15).grid(row=row,column=1)
+			tk.Label(frame,text=desc,width=65,wraplength=300).grid(row=row,column=2)
+			row+=1
+
+	def create_labels(self,frame,options):
+		current = 1
+		if isinstance(options,dict):
+			keys = options.keys()
+			width = 80 / len(keys)
+			while current != len(keys)+1:
+				row=2
+				tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)
+				for value in options[keys[current-1]]:
+					tk.Label(frame,text=value,bd=1,relief='raised',width=width,pady=3).grid(row=row,column=current)
+					row += 1
+				current += 1
+		else:
+			width = 80/len(options)
+			for item in options:
+				tk.Label(frame,text=item,bd=2,relief='raised',width=width).grid(row=1,column=current)
+				current += 1
+
+	def create_insert_form(self,frame,len_cols):
+		self.insert_vars = [tk.StringVar() for x in xrange(len_cols)]
+		width = (80/len_cols) - 1
+		for index in xrange(1,len_cols+1):
+
+			tk.Entry(frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
+		tk.Button(frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
+
 
 	def clean_create_table_vars(self):
 		for col in self.create_table_vars:

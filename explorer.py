@@ -58,16 +58,15 @@ class Explorer(object):
 		try:
 			statement = 'DESCRIBE %s' % table_name
 			self.cursor.execute(statement)
-			to_return = {'Field':[],'Type':[],'Null':[],'Key':[],'Default':[],'Extra':[]}
+			to_return = {'Field':[],'Type':[],'Null':[],'Key':[],'Default':[]}
 			records = self.cursor.fetchall()
 			for tupl in records:
-				to_return['Order'] = ('Field','Type','Null','Key','Default','Extra')
+				to_return['Order'] = ('Field','Type','Null','Key','Default')
 				to_return['Field'].append(tupl[0])
 				to_return['Type'].append(tupl[1])
 				to_return['Null'].append(tupl[2])
 				to_return['Key'].append(tupl[3])
 				to_return['Default'].append(tupl[4])
-				to_return['Extra'].append(tupl[5])
 			return to_return
 		except Exception:
 			raise ex.TableDoesntExist(table_name)
@@ -185,7 +184,7 @@ class Explorer(object):
 		self.connection.commit()
 		self.connection.close()
 		process = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server stop')
-		#process.logfile = sys.stdout
+		process.logfile = sys.stdout
 		try:
 			process.expect('Password:')
 			process.sendline(self.root_pass)
