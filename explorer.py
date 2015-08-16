@@ -49,7 +49,7 @@ class Explorer(object):
 				statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],pk_list[0])
 			final_statement = statement_start+statement_mid+statement_end
 			self.cursor.execute(final_statement)
-			return True
+			return final_statement
 		except Exception as e:
 			print e
 			raise ex.TableExists(info_dict['table_name'])
@@ -67,6 +67,7 @@ class Explorer(object):
 				to_return['Null'].append(tupl[2])
 				to_return['Key'].append(tupl[3])
 				to_return['Default'].append(tupl[4])
+			to_return['query'] = statement
 			return to_return
 		except Exception:
 			raise ex.TableDoesntExist(table_name)
@@ -80,6 +81,7 @@ class Explorer(object):
 		end_statement = ')'
 		final = start_statement+columns+mid_statement+values+end_statement
 		self.cursor.execute(final)
+		return final
 
 	def check_values(self,values,types):	
 		how_many = [x for x in xrange(len(types)) if types[x].startswith('int')]
@@ -99,7 +101,9 @@ class Explorer(object):
 	def show_tables(self):
 		statement = 'SHOW TABLES'
 		self.cursor.execute(statement)
-		return {'Name': [x[0] for x in self.cursor.fetchall()]}
+		to_return = {'Name': [x[0] for x in self.cursor.fetchall()]}
+		to_return['query'] = statement
+		return to_return
 
 	def show_table(self,table_name):
 		statement = 'SELECT * FROM {}'.format(table_name)
@@ -114,11 +118,13 @@ class Explorer(object):
 		for tupl in self.cursor.fetchall():
 			for index in xrange(len(checker)):
 				to_return[checker[index]].append(tupl[index])
+		to_return['query'] = statement
 		return to_return
 
 	def delete_table(self,table_name):
 		statement = 'DROP TABLE {}'.format(table_name)
 		self.cursor.execute(statement)
+		return statement
 
 	def alter_table(self,option,table_name,*args):
 		if option == 'add':
@@ -126,6 +132,7 @@ class Explorer(object):
 		elif option == 'drop':
 			statement = 'ALTER TABLE {} DROP COLUMN {}'.format(table_name,*args)
 		self.cursor.execute(statement)
+		return statement
 
 	def get_values(self,table_name,column_name):
 		statement = 'SELECT {} FROM {}'.format(column_name,table_name)
@@ -143,6 +150,7 @@ class Explorer(object):
 					new_var = '"' + new_var + '"'
 		statement = 'UPDATE {} SET {}={} WHERE {}={}'.format(table_name,col_name,new_var,col_name,old_var)
 		self.cursor.execute(statement)
+		return statement
 
 	def select(self,table_name,col_name,value):
 		desc_statement = 'DESCRIBE {}'.format(table_name)
@@ -160,6 +168,7 @@ class Explorer(object):
 		for tupl in self.cursor.fetchall():
 			for index in xrange(len(tupl)):
 				to_return[keys[index]].append(tupl[index])
+		to_return['query'] = statement
 		return to_return
 
 	def show_dbs(self):

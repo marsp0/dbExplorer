@@ -118,15 +118,20 @@ class Gui(tk.Frame):
 		self.inner_second_display.pack()
 		self.inner_second_display.config(bd=2,relief='raised')
 		to_display = self.explorer.show_tables()
+		query = to_display['query']
+		del to_display['query']
 		self.create_labels(self.inner_second_display,to_display)
+		self.show_query(query)
+
 
 	def view_table(self):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
-		tk.Button(self.inner_first_display,text='Search',command = self.search_table).grid(row=1,column=2)
-		tk.Button(self.inner_first_display,text='Describe',command = self.describe_table).grid(row=1,column=3)
+		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+		tk.Button(self.inner_first_display,text='Search',command = self.search_table).grid(row=1,column=3)
+		tk.Button(self.inner_first_display,text='Describe',command = self.describe_table).grid(row=1,column=4)
 
 	def describe_table(self):
 		if self.table_name_var.get() == '':
@@ -136,7 +141,9 @@ class Gui(tk.Frame):
 			self.inner_second_display.config(bd=2,relief='raised')
 			results = self.explorer.view_table_info(self.table_name_var.get())
 			order = results['Order']
+			query = results['query']
 			del results['Order']
+			del results['query']
 			col = 1
 			width = 80/len(results)-1
 			for item in order:
@@ -144,6 +151,7 @@ class Gui(tk.Frame):
 				for index in xrange(1,len(results[item])+1):
 					tk.Label(self.inner_second_display,text=results[item][index-1],pady=3,bd=2,relief='raised',width = width).grid(row=index,column=col)
 				col += 1
+			self.show_query(query)
 
 	def search_table(self):
 		if self.table_name_var.get() == '':
@@ -152,8 +160,12 @@ class Gui(tk.Frame):
 			self.clean_inner_frame(self.inner_second_display)
 			self.inner_second_display.config(bd=2,relief='raised')
 			results = self.explorer.show_table(self.table_name_var.get())
+			query = results['query']
+			del results['query']
 			self.create_labels(self.inner_second_display,results)
 			self.table_name_var.set('')
+
+			self.show_query(query)
 
 	def create_table(self):
 		self.clean_inner_parent()
@@ -186,9 +198,11 @@ class Gui(tk.Frame):
 		result = self.prepare_check()
 		if result:
 			try:
-				self.explorer.create_table(result)
+				query = self.explorer.create_table(result)
 				self.clean_create_table_vars()
 				mb.showinfo('Success','The table is created :)')
+				self.show_query(query)
+
 			except ex.TableExists:
 				mb.showwarning('Error','The name of the Table already exists in this database')
 		else:
@@ -215,10 +229,18 @@ class Gui(tk.Frame):
 		tk.Button(self.inner_first_display,text='Delete',command = self.del_table).grid(row=1,column=2)
 
 	def del_table(self):
-		table_name = self.table_name_var.get()
-		self.explorer.delete_table(table_name)
-		self.table_name_var.set('')
-		mb.showinfo('Table Deleted','The {} table was successfuly deleted'.format(table_name))
+		if self.table_name_var.get() == '':
+			mb.showwarning('Error','Please select a table from the list')
+		else:
+			try:
+				table_name = self.table_name_var.get()
+				query = self.explorer.delete_table(table_name)
+				self.table_name_var.set('')
+				mb.showinfo('Table Deleted','The {} table was successfuly deleted'.format(table_name))
+
+				self.show_query(query)
+			except MySQLdb.Error:
+				mb.showwarning('Error','The table you requested has already been deleted, please refresh')
 
 	def insert(self):
 		self.clean_inner_parent()
@@ -226,7 +248,8 @@ class Gui(tk.Frame):
 		self.inner_second_display.pack()
 		tables = self.explorer.show_tables()['Name']
 		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
-		tk.Button(self.inner_first_display,text='Check',command = self.insert_form).grid(row=1,column=2)
+		self.check_insert_button = tk.Button(self.inner_first_display,text='Check',command = self.insert_form)
+		self.check_insert_button.grid(row=1,column=2)
 
 	def insert_form(self):
 		if self.table_name_var.get() == '':
@@ -239,12 +262,15 @@ class Gui(tk.Frame):
 			self.create_insert_form(self.inner_second_display,len(columns))
 
 	def save_insert(self):
-		#todo : check the values if there is 
-		self.explorer.insert_into(self.table_name_var.get(),[var.get() for var in self.insert_vars])
+		query = self.explorer.insert_into(self.table_name_var.get(),[var.get() for var in self.insert_vars])
 		mb.showinfo('Success','The row was inserted in the table')
 		self.table_name_var.set('')
 		for var in self.insert_vars:
 			var.set('')
+		self.show_query(query)
+		self.insert_button.config(command = self.refresh_page)
+		self.check_insert_button.config(command = self.refresh_page)
+
 
 	def alter_view(self):
 		self.clean_inner_parent()
@@ -281,9 +307,10 @@ class Gui(tk.Frame):
 
 	def alter(self,option,table_name,*args):
 		if option == 'add':
-			self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
+			query = self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
 		elif option == 'drop':
-			self.explorer.alter_table('drop',table_name,*args)
+			query = self.explorer.alter_table('drop',table_name,*args)
+		self.show_query(query)
 
 	def update_view(self):
 		self.clean_inner_parent()
@@ -313,17 +340,21 @@ class Gui(tk.Frame):
 			self.create_labels(self.inner_second_display,('New Value','Old Value'))
 			tk.Entry(self.inner_second_display,textvariable=self.update_new_var,width=39).grid(row=2,column=1)
 			tk.OptionMenu(self.inner_second_display,self.update_old_var,*values).grid(row=2,column=2)
-			tk.Button(self.inner_second_display,text='Update',command = lambda : self.update(table_name,column)).grid(row=3,column=2)
+			self.second_update_button = tk.Button(self.inner_second_display,text='Update',command = lambda : self.update(table_name,column))
+			self.second_update_button.grid(row=3,column=2)
 
 	def update(self,table_name,column):
 		new_var = self.update_new_var.get()
 		old_var = self.update_old_var.get()
-		self.explorer.update(table_name,column,new_var,old_var)
+		query = self.explorer.update(table_name,column,new_var,old_var)
 		self.table_name_var.set('')
 		self.column_var.set('')
 		self.update_old_var.set('')
 		self.update_new_var.set('')
 		mb.showinfo('Success','The row was successfuly updated')
+		self.show_query(query)
+		self.update_button.config(command = self.refresh_page)
+		self.second_update_button.config(command = self.refresh_page)
 
 	def select_view(self):
 		self.clean_inner_parent()
@@ -359,9 +390,19 @@ class Gui(tk.Frame):
 			value = self.select_val_var.get()
 			self.inner_second_display.config(bd=2,relief='raised')
 			to_display = self.explorer.select(table_name,col_name,value)
+			query = to_display['query']
+			del to_display['query']
+			self.table_name_var.set('')
+			self.column_var.set('')
+			self.select_val_var.set('')
 			self.create_labels(self.inner_second_display,to_display)
+			self.show_query(query)
+			self.select_button.config(command = self.refresh_page)
 
 	''' HELPERS '''
+
+	def refresh_page(self):
+		mb.showwarning('Invalid Query','Please refresh the page before querying the database')
 
 	def create_buttons(self,frame,options):
 		column = 1
@@ -405,7 +446,8 @@ class Gui(tk.Frame):
 		for index in xrange(1,len_cols+1):
 
 			tk.Entry(frame,textvariable=self.insert_vars[index-1],width=width).grid(row=2,column=index)
-		tk.Button(frame,text='Insert',command = self.save_insert).grid(row=3,column=index)
+		self.insert_button = tk.Button(frame,text='Insert',command = self.save_insert)
+		self.insert_button.grid(row=3,column=index)
 
 
 	def clean_create_table_vars(self):
@@ -432,6 +474,11 @@ class Gui(tk.Frame):
 						ch.destroy()
 			else:
 				child.destroy()
+
+	def show_query(self,query):
+		self.clean_inner_frame(self.inner_third_display)
+		self.inner_third_display.config(relief='raised',bd=2)
+		tk.Label(self.inner_third_display,text=query+';',width=80,pady=10,wraplength=500).grid(row=1,column=1)
 
 
 	def packer(self,to_unpack,to_pack):
