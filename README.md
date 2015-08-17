@@ -10,8 +10,7 @@ MySQLdb - https://pypi.python.org/pypi/MySQL-python or use pip :)
 
 TODO :
 
-1. Add PK, check for duplicate column names and check the data in the 'extra' and 'default' fields
+1. Add more serious check on the default value, and add perhaps extra field
 2. Add ORDER BY, WHERE etc
 3. Add Foreign Keys
-4. add option for more than 5 columns and rows
 5. add option to change the database from the gui and add the gui for the root password and username

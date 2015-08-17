@@ -205,6 +205,9 @@ class Gui(tk.Frame):
 
 			except ex.TableExists:
 				mb.showwarning('Error','The name of the Table already exists in this database')
+			except ex.MaxTableNumberReached as e:
+				mb.showwarning('Error','You have reached the maximum number of tables allowed : {}'.format(e.number))
+				self.table_name_var.set('')
 		else:
 			mb.showwarning('Error','Some of the fields you have entered are empty or contain an invalid value. Check again :)')
 
@@ -212,21 +215,27 @@ class Gui(tk.Frame):
 		to_return = {}
 		if self.table_name_var.get() == '' or all(self.create_table_vars[check][0].get() == '' for check in self.create_table_vars):
 			return False
-		to_return['table_name'] = self.table_name_var.get()
+		to_return['table_name'] = self.table_name_var.get().replace(' ','_')
 		for col in self.create_table_vars:
 			name = self.create_table_vars[col][0].get()
 			if name != '' and (self.create_table_vars[col][1].get() == '' or self.create_table_vars[col][2].get() == '' or self.create_table_vars[col][3].get() == ''):
 				return False
 			if name != '':
-				to_return[name] = [var.get() for var in self.create_table_vars[col][1:]]
+				if (not self.create_table_vars[col][2].get().isdigit()) or to_return.has_key(name):
+					return False
+				elif ' ' in [var.get() for var in self.create_table_vars[col][1:]]:
+					return False
+				else:
+					to_return[name.replace(' ','_')] = [var.get().strip("'").replace('"',"'") for var in self.create_table_vars[col][1:]]
 		return to_return
 
 	def delete_table(self):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
-		tk.Button(self.inner_first_display,text='Delete',command = self.del_table).grid(row=1,column=2)
+		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+		tk.Button(self.inner_first_display,text='Delete',command = self.del_table).grid(row=1,column=3)
 
 	def del_table(self):
 		if self.table_name_var.get() == '':
@@ -247,9 +256,10 @@ class Gui(tk.Frame):
 		self.inner_first_display.pack()
 		self.inner_second_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
+		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
 		self.check_insert_button = tk.Button(self.inner_first_display,text='Check',command = self.insert_form)
-		self.check_insert_button.grid(row=1,column=2)
+		self.check_insert_button.grid(row=1,column=3)
 
 	def insert_form(self):
 		if self.table_name_var.get() == '':
@@ -262,24 +272,36 @@ class Gui(tk.Frame):
 			self.create_insert_form(self.inner_second_display,len(columns))
 
 	def save_insert(self):
-		query = self.explorer.insert_into(self.table_name_var.get(),[var.get() for var in self.insert_vars])
-		mb.showinfo('Success','The row was inserted in the table')
-		self.table_name_var.set('')
-		for var in self.insert_vars:
-			var.set('')
-		self.show_query(query)
-		self.insert_button.config(command = self.refresh_page)
-		self.check_insert_button.config(command = self.refresh_page)
-
+		try:
+			query = self.explorer.insert_into(self.table_name_var.get(),[var.get() for var in self.insert_vars])
+			mb.showinfo('Success','The row was inserted in the table')
+			self.table_name_var.set('')
+			for var in self.insert_vars:
+				var.set('')
+			self.show_query(query)
+			self.insert_button.config(command = self.refresh_page)
+			self.check_insert_button.config(command = self.refresh_page)
+		except ex.MaxRowReached:
+			mb.showwarning('Error','Max number of rows reached : 10')
+		except ex.ValueTooBig:
+			mb.showwarning('Error','One of the values you are trying to insert is bigger than the specified column size')
+		except ex.InvalidIntValue:
+			mb.showwarning('Error','You are trying to insert a characters in an INT column')
+		except ex.PKDuplicate:
+			mb.showwarning('Error','One of the columns that you specified as PRIMARY KEY contains duplicate value that is already being used')
+		except ex.NullValue:
+			mb.showwarning('Error','You are passing a NULL value to a NO NULL column')
 
 	def alter_view(self):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
 		self.alter_action_var.set('Add')
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.alter_action_var,'Add','Drop','Alter').grid(row=1,column=2)
-		tk.Button(self.inner_first_display,text='Continue',command = self.alter_table).grid(row=1,column=4)
+		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+		tk.Label(self.inner_first_display,text='Action').grid(row=1,column=3)
+		tk.OptionMenu(self.inner_first_display,self.alter_action_var,'Add','Drop','Alter').grid(row=1,column=4)
+		tk.Button(self.inner_first_display,text='Continue',command = self.alter_table).grid(row=1,column=5)
 
 	def alter_table(self):
 		self.clean_inner_frame(self.inner_second_display)
@@ -307,18 +329,33 @@ class Gui(tk.Frame):
 
 	def alter(self,option,table_name,*args):
 		if option == 'add':
-			query = self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
+			if self.alter_add_vars[2].get().isdigit():
+				try:
+					query = self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
+					self.show_query(query)
+				except ex.ColumnExists as e:
+					mb.showwarning('Error','The column already exists')
+				except ex.MaxColumnReached:
+					mb.showwarning('Error','Max number of columns reached : 5')
+			else:
+				mb.showwarning('Error','The value in the column size field should be a whole number')
 		elif option == 'drop':
-			query = self.explorer.alter_table('drop',table_name,*args)
-		self.show_query(query)
+			try:
+				query = self.explorer.alter_table('drop',table_name,*args)
+				self.show_query(query)
+			except ex.OneColLeft:
+				mb.showwarning('Error','You cannot delete the last column of a table, try Delete Table')
+			except ex.ColumnDeleted:
+				mb.showwarning('Error','The column you are trying to delete is already deleted')
 
 	def update_view(self):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
+		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
 		self.update_button = tk.Button(self.inner_first_display,text='Continue',command=self.update_view_cols)
-		self.update_button.grid(row=1,column=3)
+		self.update_button.grid(row=1,column=5)
 
 	def update_view_cols(self):
 		if self.table_name_var.get() == '':
@@ -326,7 +363,8 @@ class Gui(tk.Frame):
 		else:
 			table_name = self.table_name_var.get()
 			columns = self.explorer.get_columns(table_name)
-			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=2)
+			tk.Label(self.inner_first_display,text='Column Name').grid(row=1,column=3)
+			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=4)
 			self.update_button.config(command = lambda : self.display_update_options(table_name))
 
 	def display_update_options(self,table_name):
@@ -360,9 +398,10 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=1)
+		tk.Label(self.inner_first_display,text='Table').grid(row = 1,column = 1)
+		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
 		self.select_button = tk.Button(self.inner_first_display,text='Continue',command = self.display_select_options)
-		self.select_button.grid(row=1,column=4)
+		self.select_button.grid(row=1,column=7)
 
 	def display_select_options(self):
 		if self.table_name_var.get() == '':
@@ -370,7 +409,8 @@ class Gui(tk.Frame):
 		else:
 			table_name = self.table_name_var.get()
 			columns = self.explorer.get_columns(table_name)
-			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=2)
+			tk.Label(self.inner_first_display,text='Column').grid(row = 1,column = 3)
+			tk.OptionMenu(self.inner_first_display,self.column_var,*columns).grid(row=1,column=4)
 			self.select_button.config(command = lambda : self.display_select(table_name))
 
 	def display_select(self,table_name):
@@ -380,7 +420,8 @@ class Gui(tk.Frame):
 			self.inner_second_display.pack()
 			col_name = self.column_var.get()
 			values = self.explorer.get_values(table_name,col_name)
-			tk.OptionMenu(self.inner_first_display,self.select_val_var,*values).grid(row=1,column=3)
+			tk.Label(self.inner_first_display,text='Value').grid(row = 1,column = 5)
+			tk.OptionMenu(self.inner_first_display,self.select_val_var,*values).grid(row=1,column=6)
 			self.select_button.config(command = lambda : self.display_select_results(table_name,col_name))
 
 	def display_select_results(self,table_name,col_name):
@@ -426,7 +467,7 @@ class Gui(tk.Frame):
 		current = 1
 		if isinstance(options,dict):
 			keys = options.keys()
-			width = 80 / len(keys)
+			width = 80 / len(keys) if len(keys) < 5 else 80/len(keys) - 1
 			while current != len(keys)+1:
 				row=2
 				tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)

@@ -29,30 +29,41 @@ class Explorer(object):
 
 	def create_table(self,info_dict):
 		try:
-			sentinel = 2
-			statement_start = 'CREATE TABLE {table_name} ('.format(table_name = info_dict['table_name'])
-			statement_end = ')'
-			statement_mid = ''
-			items = info_dict.items()
-			for key,value in items:
-				if key != 'table_name':
-					if sentinel == len(info_dict):
-						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} '.format(col_name = key ,col_type = value[0], col_size = value[1], null = value[2],default = 'DEFAULT ' + '"' + value[3] + '"' if value[0] == 'VARCHAR' else 'DEFAULT ' + value[3])
-					else:
-						statement_mid += '{col_name} {col_type}({col_size}) {null} {default} ,'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default='DEFAULT ' + '"' + value[3] + '"' if value[0] == 'VARCHAR' else 'DEFAULT ' + value[3])
-					sentinel += 1
-			
-			pk_list = [key for key,value in items if value[4] == 'Yes']
-			if len(pk_list) > 1:
-				statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],','.join(pk_list))
-			elif len(pk_list) == 1:
-				statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],pk_list[0])
-			final_statement = statement_start+statement_mid+statement_end
-			self.cursor.execute(final_statement)
-			return final_statement
-		except Exception as e:
+			desc_statement = 'SHOW TABLES'
+			self.cursor.execute(desc_statement)
+			table_num = [x[0] for x in self.cursor.fetchall()]
+			if len(table_num) < 5:
+				sentinel = 2
+				statement_start = 'CREATE TABLE {table_name} ('.format(table_name = info_dict['table_name'])
+				statement_end = ')'
+				statement_mid = ''
+				items = info_dict.items()
+				for key,value in items:
+					if key != 'table_name':
+						if value[0] == 'VARCHAR':
+							if value[3] != '':
+								value[3] = 'DEFAULT "{}"'.format(value[3])
+						else:
+							if value[3] != '':
+								value[3] = 'DEFAULT {}'.format(value[3])
+						if sentinel == len(info_dict):
+							statement_mid += '{col_name} {col_type}({col_size}) {null} {default} '.format(col_name = key ,col_type = value[0], col_size = value[1], null = value[2],default = value[3])
+						else:
+							statement_mid += '{col_name} {col_type}({col_size}) {null} {default} ,'.format(col_name = key  ,col_type = value[0], col_size = value[1], null=value[2],default=value[3])
+						sentinel += 1
+				pk_list = [key for key,value in items if key != 'table_name' and value[4] == 'Yes']
+				if len(pk_list) > 1:
+					statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],','.join(pk_list))
+				elif len(pk_list) == 1:
+					statement_mid += ',CONSTRAINT pk_{} PRIMARY KEY ({})'.format(info_dict['table_name'],pk_list[0])
+				final_statement = statement_start + statement_mid + statement_end
+				self.cursor.execute(final_statement)
+				return final_statement
+			else:
+				raise ex.MaxTableNumberReached(5)
+		except MySQLdb.Error as e:
 			print e
-			raise ex.TableExists(info_dict['table_name'])
+			raise ex.TableExists(info_dict['name'])
 
 	def view_table_info(self,table_name):
 		try:
@@ -73,18 +84,44 @@ class Explorer(object):
 			raise ex.TableDoesntExist(table_name)
 
 	def insert_into(self,table_name,values):
-		columns,types = self.get_columns(table_name,1)
-		start_statement = 'INSERT INTO {} ('.format(table_name)
-		columns = ','.join(columns)
-		mid_statement = ') VALUES ('
-		values = ','.join(self.check_values(values,types))
-		end_statement = ')'
-		final = start_statement+columns+mid_statement+values+end_statement
-		self.cursor.execute(final)
-		return final
+		all_values_statement = 'SELECT * FROM {}'.format(table_name)
+		self.cursor.execute(all_values_statement)
+		if len(self.cursor.fetchall()) < 10:
+			try:
+				desc_statement = 'DESCRIBE {}'.format(table_name)
+				self.cursor.execute(desc_statement)
+				columns = self.cursor.fetchall()
+				column_names,types,nulls = [[x[index] for x in columns] for index in xrange(3)]
+				start_statement = 'INSERT INTO {} ('.format(table_name)
+				column_names = ','.join(column_names)
+				mid_statement = ') VALUES ('
+				values = ','.join(self.check_values(values,types,nulls))
+				end_statement = ')'
+				final = start_statement+column_names+mid_statement+values+end_statement
+				self.cursor.execute(final)
+				return final
+			except MySQLdb.Error as e:
+				if e[0] == 1264:
+					raise ex.ValueTooBig()
+				elif e[0] == 1054:
+					raise ex.InvalidIntValue()
+				elif e[0] == 1062:
+					raise ex.PKDuplicate()
+				else:
+					print e
+		else:
+			raise ex.MaxRowReached()
 
-	def check_values(self,values,types):	
-		how_many = [x for x in xrange(len(types)) if types[x].startswith('int')]
+	def check_values(self,values,types,nulls):
+		for index in xrange(len(nulls)):
+			if nulls[index] == 'NO':
+				if values[index] == '':
+					raise ex.NullValue()
+			elif nulls[index] == 'YES':
+				if values[index] == '':
+					values[index] = 'NULL'
+
+		how_many = [x for x in xrange(len(types)) if types[x].startswith('int') or values[x] == 'NULL']
 		values = ['"'+value+'"' if values.index(value) not in how_many else value for value in values]
 		return values
 
@@ -126,12 +163,24 @@ class Explorer(object):
 		self.cursor.execute(statement)
 		return statement
 
-	def alter_table(self,option,table_name,*args):
+	def alter_table(self,option,table_name,col_info):
 		if option == 'add':
-			statement = 'ALTER TABLE {} ADD {} {}({})'.format(table_name,*args)
+			columns = self.get_columns(table_name)
+			if col_info[0] in columns:
+				raise ex.ColumnExists()
+			elif len(columns) >= 5:
+				raise ex.MaxColumnReached()
+			else:
+				statement = 'ALTER TABLE {} ADD {} {}({})'.format(table_name,*col_info)
 		elif option == 'drop':
-			statement = 'ALTER TABLE {} DROP COLUMN {}'.format(table_name,*args)
-		self.cursor.execute(statement)
+			statement = 'ALTER TABLE {} DROP COLUMN {}'.format(table_name,col_info)
+		try:
+			self.cursor.execute(statement)
+		except MySQLdb.OperationalError as e:
+			if e[0] == 1091:
+				raise ex.ColumnDeleted()
+			elif e[0] == 1090:
+				raise ex.OneColLeft()
 		return statement
 
 	def get_values(self,table_name,column_name):
@@ -180,20 +229,17 @@ class Explorer(object):
 	def start_server(self):
 		''' VERY IMPORTANT NOTE : If the server is started manually it has to be closed manually'''
 		process = pexpect.spawn('sudo -v')
-		#process.logfile = sys.stdout
 		try:
 			process.expect('Password:')
 			process.sendline(self.root_pass)
 		except pexpect.EOF:
 			pass
 		process2 = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server start')
-		#process2.logfile = sys.stdout
 
 	def stop_server(self):
 		self.connection.commit()
 		self.connection.close()
 		process = pexpect.spawn('sudo /usr/local/mysql/support-files/mysql.server stop')
-		process.logfile = sys.stdout
 		try:
 			process.expect('Password:')
 			process.sendline(self.root_pass)
