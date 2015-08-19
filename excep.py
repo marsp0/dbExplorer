@@ -53,3 +53,9 @@ class PKDuplicate(TableErrors):
 class NullValue(TableErrors):
 
 	pass
+
+class ModulesNotFound(Exception):
+	pass
+
+class NoMYSQL(Exception):
+	pass

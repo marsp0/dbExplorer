@@ -1,8 +1,11 @@
-import MySQLdb
-import pexpect
-import excep as ex
-import time
-import sys
+try:
+	import MySQLdb
+	import pexpect
+	import excep as ex
+	import time
+	import sys
+except ImportError:
+	raise ex.ModulesNotFound()
 
 # Start the server from the terminal sudo /usr/local/mysql/support-files/mysql.server start
 # Stop the server from the terminal sudo /usr/local/mysql/support-files/mysql.server stop
@@ -18,13 +21,25 @@ class Explorer(object):
 		self.root_pass = root_password
 		#start the mysql server
 		self.start_server()
-		time.sleep(8)
 		#create the connection
-		self.connection = MySQLdb.connect(host='',
-										user = self.root_user,
-										passwd = self.root_pass,
-										db='test')
-		self.cursor = self.connection.cursor()
+		try:
+			#using a try except block because on the first try it always fails, i need to figure out why
+			self.connection = MySQLdb.connect(host='',
+											user = self.root_user,
+											passwd = self.root_pass,
+											db='test')
+		except MySQLdb.Error:
+			#as it fails on the first try, we are trying again and this time wait a few seconds because otherwaise raises the error even when the DB has started
+			try:
+				time.sleep(4)
+				self.connection = MySQLdb.connect(host='',
+												user = self.root_user,
+												passwd = self.root_pass,
+												db='test')
+			except MySQLdb.Error:
+				raise ex.NoMYSQL()
+
+		self.cursor = self.connection.cursor()	
 
 
 	def create_table(self,info_dict):

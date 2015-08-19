@@ -17,6 +17,7 @@ class Gui(tk.Frame):
 		self.main_display = tk.Frame(self)
 		self.table_main_display = tk.Frame(self)
 		self.db_main_display = tk.Frame(self)
+		self.login_display = tk.Frame(self)
 		
 
 		self.main_options = (
@@ -49,8 +50,6 @@ class Gui(tk.Frame):
 									('Column -',' defines the different qualities of the table. Example : Name, Age etc.'),
 									('Row -',' contains the different records. Example : Ron, 34 , etc.'))
 
-		self.explorer = Explorer('root','0899504274')
-
 		self.table_name_var = tk.StringVar()
 		self.column_var = tk.StringVar()
 		self.alter_action_var = tk.StringVar()
@@ -64,7 +63,27 @@ class Gui(tk.Frame):
 		self.data_type = ('VARCHAR','INT')
 		self.create_table_vars = {i:[tk.StringVar() for x in xrange(6)] for i in xrange(1,6)}
 
-		self.main_view()
+		self.login_view()
+
+	def login_view(self):
+		self.login_display.pack()
+		self.user_var = tk.StringVar()
+		self.pass_var = tk.StringVar()
+		tk.Label(self.login_display,text='Admin Username',width=20,pady=3,bd=2,relief='raised').grid(row=1,column=1)
+		tk.Entry(self.login_display,textvariable=self.user_var).grid(row=1,column=2)
+		tk.Label(self.login_display,text='Admin Password',width=20,pady=3,bd=2,relief='raised').grid(row=2,column=1)
+		tk.Entry(self.login_display,textvariable=self.pass_var,show='*').grid(row=2,column=2)
+		tk.Button(self.login_display,text='Quit',command=self.master.quit).grid(row=3,column=1)
+		tk.Button(self.login_display,text='Login',command = self.login).grid(row=3,column=2)
+
+	def login(self):
+		try:
+			self.explorer = Explorer(self.user_var.get(),self.pass_var.get())
+			self.packer(self.login_display,self.main_view)
+		except ex.ModulesNotFound:
+			mb.showwarning('Error','Please make sure that the following modules are installed on your computer :\n- MySQLdb\n-pexpect\n\nLinks for these modules can be found in the readme file.')
+		except ex.NoMYSQL:
+			mb.showwarning('Error','Please make sure that MySQL is installed on this computer and that the credentials given are for the admin account.')
 
 	def main_view(self):
 		self.master.title('DB Explorer')
@@ -301,7 +320,8 @@ class Gui(tk.Frame):
 		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
 		tk.Label(self.inner_first_display,text='Action').grid(row=1,column=3)
 		tk.OptionMenu(self.inner_first_display,self.alter_action_var,'Add','Drop','Alter').grid(row=1,column=4)
-		tk.Button(self.inner_first_display,text='Continue',command = self.alter_table).grid(row=1,column=5)
+		self.alter_continue = tk.Button(self.inner_first_display,text='Continue',command = self.alter_table)
+		self.alter_continue.grid(row=1,column=5)
 
 	def alter_table(self):
 		self.clean_inner_frame(self.inner_second_display)
@@ -317,7 +337,8 @@ class Gui(tk.Frame):
 				tk.Entry(self.inner_second_display,width=25,textvariable=self.alter_add_vars[0]).grid(row=2,column=1)
 				tk.OptionMenu(self.inner_second_display,self.alter_add_vars[1],'VARCHAR','INT').grid(row=2,column=2)
 				tk.Entry(self.inner_second_display,width=25,textvariable=self.alter_add_vars[2]).grid(row=2,column=3)
-				tk.Button(self.inner_second_display,text='Add',command = lambda : self.alter('add',table_name)).grid(row=3,column=3)
+				self.alter_add = tk.Button(self.inner_second_display,text='Add',command = lambda : self.alter('add',table_name))
+				self.alter_add.grid(row=3,column=3)
 			elif action == 'Drop':
 				row = 0
 				for column in columns:
@@ -333,6 +354,8 @@ class Gui(tk.Frame):
 				try:
 					query = self.explorer.alter_table('add',table_name,[var.get() for var in self.alter_add_vars])
 					self.show_query(query)
+					self.alter_add.config(command = self.refresh_page)
+					self.alter_continue.config(command = self.refresh_page)
 				except ex.ColumnExists as e:
 					mb.showwarning('Error','The column already exists')
 				except ex.MaxColumnReached:
