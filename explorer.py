@@ -248,8 +248,17 @@ class Explorer(object):
 		return statement
 
 	def alter_table(self,option,table_name,col_info):
+		''' option - add/remove/alter(not yet implemented)
+			table_name - string
+			col_info - if option == add - col name, type and size
+					 - if option == drop - col name
+		'''
+		#prepare the statements based on the option chosen
 		if option == 'add':
+			#get the column names
+			#check todo.txt GLOBAL 
 			columns = self.get_columns(table_name)
+			#if the name is in the list or the number of cols is 5, we raise an error
 			if col_info[0] in columns:
 				raise ex.ColumnExists()
 			elif len(columns) >= 5:
@@ -261,22 +270,28 @@ class Explorer(object):
 		try:
 			self.cursor.execute(statement)
 		except MySQLdb.OperationalError as e:
+			#the column has already been deleted
 			if e[0] == 1091:
 				raise ex.ColumnDeleted()
+			#table with only one col cant be deleted
 			elif e[0] == 1090:
 				raise ex.OneColLeft()
 		return statement
 
 	def get_values(self,table_name,column_name):
+		''' get the values for a given table name and col name'''
 		statement = 'SELECT {} FROM {}'.format(column_name,table_name)
 		self.cursor.execute(statement)
 		return [x[0] for x in self.cursor.fetchall()]
 
 	def update(self,table_name,col_name,new_var,old_var):
+		#get the column names and compare them to the one passed as argument
+		#check todo.txt GLOBAL
 		desc_statement = 'DESCRIBE {}'.format(table_name)
 		self.cursor.execute(desc_statement)
 		col_info = self.cursor.fetchall()
 		for column in col_info:
+			#if there is a match and the type is varchar add quotes to the values
 			if column[0] == col_name:
 				if not column[1].startswith('int'):
 					old_var = '"' + old_var + '"'
@@ -286,6 +301,9 @@ class Explorer(object):
 		return statement
 
 	def select(self,table_name,col_name,value):
+		''' for now this statement works only with one where item and selects everything that matches it'''
+		#get the info cols and check if the value is VARCHAR 
+		#if it is add quotes 
 		desc_statement = 'DESCRIBE {}'.format(table_name)
 		self.cursor.execute(desc_statement)
 		col_info = self.cursor.fetchall()

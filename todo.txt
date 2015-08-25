@@ -10,6 +10,17 @@ TODO :
 	2.2 Should i add Extra field ? get more info
 	2.3 Should i use ordered dict for the order of the columns or leave it like that ? 
 
+3 ALTER TABLE
+	3.1 add default value and null fields to the add option
+	3.2 implement the alter option
+
+4 SELECT
+	4.1 implement selecting only a few column isntead of everything with the wildcard *
+	4.2 add the option for more than 1 item in the where clause
+
+5 start db
+	5.1 check to see why when using a single comment, it doesnt start the db but when using 2 different commands (first only sudo and then the start server) it works
+
 GLOBAL
 	Avoiding unnecessary queries :
 	1.1 Cache (learn more about caching) or keep in memory the table number ,table names,table len(rows), columns info
