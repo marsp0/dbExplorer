@@ -18,6 +18,7 @@ class Gui(tk.Frame):
 		self.table_main_display = tk.Frame(self)
 		self.db_main_display = tk.Frame(self)
 		self.login_display = tk.Frame(self)
+
 		
 
 		self.main_options = (
@@ -139,6 +140,8 @@ class Gui(tk.Frame):
 		to_display = self.explorer.show_tables()
 		query = to_display['query']
 		del to_display['query']
+		if not to_display:
+			to_display['Empty'] = []
 		self.create_labels(self.inner_second_display,to_display)
 		self.show_query(query)
 
@@ -147,10 +150,13 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		tk.Button(self.inner_first_display,text='Search',command = self.search_table).grid(row=1,column=3)
-		tk.Button(self.inner_first_display,text='Describe',command = self.describe_table).grid(row=1,column=4)
+		if tables:
+			tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			tk.Button(self.inner_first_display,text='Search',command = self.search_table).grid(row=1,column=3)
+			tk.Button(self.inner_first_display,text='Describe',command = self.describe_table).grid(row=1,column=4)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',width=80,relief='raised',bd=2).grid(row=1,column=1)
 
 	def describe_table(self):
 		if self.table_name_var.get() == '':
@@ -231,30 +237,48 @@ class Gui(tk.Frame):
 			mb.showwarning('Error','Some of the fields you have entered are empty or contain an invalid value. Check again :)')
 
 	def prepare_check(self):
+		not_usable = ('!','=','+','-','*','/','~','`','"',"'",'.',',''<','>','/',':',';','[',']','(',')','{','}','@','#','$','%','^','&')
 		to_return = {}
-		if self.table_name_var.get() == '' or all(self.create_table_vars[check][0].get() == '' for check in self.create_table_vars):
-			return False
-		to_return['table_name'] = self.table_name_var.get().replace(' ','_')
-		for col in self.create_table_vars:
-			name = self.create_table_vars[col][0].get()
-			if name != '' and (self.create_table_vars[col][1].get() == '' or self.create_table_vars[col][2].get() == '' or self.create_table_vars[col][3].get() == ''):
+		if not (self.table_name_var.get() == '' or all(self.create_table_vars[check][0].get() == '' for check in self.create_table_vars)):
+			if not any(x for x in self.table_name_var.get() if x in not_usable):
+				to_return['table_name'] = self.table_name_var.get().replace(' ','_')
+				for col in self.create_table_vars:
+					name = self.create_table_vars[col][0].get().replace(' ','_')
+					if name:
+						if any(x for x in name if x in not_usable) or name.isdigit():
+							return False
+						elif not (self.create_table_vars[col][2].get().isdigit()):
+							return False
+						elif any(x for x in self.create_table_vars[col][4].get() if x in not_usable):
+							return False
+						else:
+							if int(self.create_table_vars[col][2].get()) < 256:
+								if self.create_table_vars[col][1].get() == 'INT':
+									try:
+										check = int(self.create_table_vars[col][4].get())
+									except ValueError:
+										return False
+								if self.create_table_vars[col][3].get() == 'NOT NULL' and self.create_table_vars[col][4].get() != '':
+									return False
+								to_return[name] = [var.get() for var in self.create_table_vars[col][1:]]
+							else:
+								return False
+			else:	
 				return False
-			if name != '':
-				if (not self.create_table_vars[col][2].get().isdigit()) or to_return.has_key(name):
-					return False
-				elif ' ' in [var.get() for var in self.create_table_vars[col][1:]]:
-					return False
-				else:
-					to_return[name.replace(' ','_')] = [var.get().strip("'").replace('"',"'") for var in self.create_table_vars[col][1:]]
+		else:
+			return False
 		return to_return
 
 	def delete_table(self):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		tk.Button(self.inner_first_display,text='Delete',command = self.del_table).grid(row=1,column=3)
+		if tables:
+			tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			tk.Button(self.inner_first_display,text='Delete',command = self.del_table).grid(row=1,column=3)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',width=80,relief='raised',bd=2).grid(row=1,column=1)
 
 	def del_table(self):
 		if self.table_name_var.get() == '':
@@ -275,10 +299,13 @@ class Gui(tk.Frame):
 		self.inner_first_display.pack()
 		self.inner_second_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		self.check_insert_button = tk.Button(self.inner_first_display,text='Check',command = self.insert_form)
-		self.check_insert_button.grid(row=1,column=3)
+		if tables:
+			tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			self.check_insert_button = tk.Button(self.inner_first_display,text='Check',command = self.insert_form)
+			self.check_insert_button.grid(row=1,column=3)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',width=80,relief='raised',bd=2).grid(row=1,column=1)
 
 	def insert_form(self):
 		if self.table_name_var.get() == '':
@@ -315,13 +342,16 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		self.alter_action_var.set('Add')
-		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		tk.Label(self.inner_first_display,text='Action').grid(row=1,column=3)
-		tk.OptionMenu(self.inner_first_display,self.alter_action_var,'Add','Drop','Alter').grid(row=1,column=4)
-		self.alter_continue = tk.Button(self.inner_first_display,text='Continue',command = self.alter_table)
-		self.alter_continue.grid(row=1,column=5)
+		if tables:
+			self.alter_action_var.set('Add')
+			tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			tk.Label(self.inner_first_display,text='Action').grid(row=1,column=3)
+			tk.OptionMenu(self.inner_first_display,self.alter_action_var,'Add','Drop','Alter').grid(row=1,column=4)
+			self.alter_continue = tk.Button(self.inner_first_display,text='Continue',command = self.alter_table)
+			self.alter_continue.grid(row=1,column=5)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',width=80,relief='raised',bd=2).grid(row=1,column=1)
 
 	def alter_table(self):
 		self.clean_inner_frame(self.inner_second_display)
@@ -375,10 +405,13 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		self.update_button = tk.Button(self.inner_first_display,text='Continue',command=self.update_view_cols)
-		self.update_button.grid(row=1,column=5)
+		if tables:
+			tk.Label(self.inner_first_display,text='Table Name').grid(row=1,column=1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			self.update_button = tk.Button(self.inner_first_display,text='Continue',command=self.update_view_cols)
+			self.update_button.grid(row=1,column=5)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',width=80,relief='raised',bd=2).grid(row=1,column=1)
 
 	def update_view_cols(self):
 		if self.table_name_var.get() == '':
@@ -421,10 +454,13 @@ class Gui(tk.Frame):
 		self.clean_inner_parent()
 		self.inner_first_display.pack()
 		tables = self.explorer.show_tables()['Name']
-		tk.Label(self.inner_first_display,text='Table').grid(row = 1,column = 1)
-		tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
-		self.select_button = tk.Button(self.inner_first_display,text='Continue',command = self.display_select_options)
-		self.select_button.grid(row=1,column=7)
+		if tables:
+			tk.Label(self.inner_first_display,text='Table').grid(row = 1,column = 1)
+			tk.OptionMenu(self.inner_first_display,self.table_name_var,*tables).grid(row=1,column=2)
+			self.select_button = tk.Button(self.inner_first_display,text='Continue',command = self.display_select_options)
+			self.select_button.grid(row=1,column=7)
+		else:
+			tk.Label(self.inner_first_display,text='No Tables',relief='raised',width=80,bd=2).grid(row=1,column=1)
 
 	def display_select_options(self):
 		if self.table_name_var.get() == '':
@@ -490,7 +526,8 @@ class Gui(tk.Frame):
 		current = 1
 		if isinstance(options,dict):
 			keys = options.keys()
-			width = 80 / len(keys) if len(keys) < 5 else 80/len(keys) - 1
+			if len(keys) != 0:
+				width = 80 / len(keys) if len(keys) < 5 else 80/len(keys) - 1
 			while current != len(keys)+1:
 				row=2
 				tk.Label(frame,text=keys[current-1],bd=3,relief='raised',width=width,pady=3).grid(row=1,column=current)
@@ -540,6 +577,8 @@ class Gui(tk.Frame):
 				child.destroy()
 
 	def show_query(self,query):
+		if query == None:
+			query = ''
 		self.clean_inner_frame(self.inner_third_display)
 		self.inner_third_display.config(relief='raised',bd=2)
 		tk.Label(self.inner_third_display,text=query+';',width=80,pady=10,wraplength=500).grid(row=1,column=1)
@@ -555,7 +594,8 @@ class Gui(tk.Frame):
 		mb.showwarning('Error','The option is not yet implemented :(')
 
 	def quit(self):
-		self.explorer.stop_server()
+		#self.explorer.stop_server()
+		self.explorer.stop_info_db()
 		self.master.quit()
 
 if __name__=='__main__':

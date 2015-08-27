@@ -4,6 +4,7 @@ try:
 	import excep as ex
 	import time
 	import sys
+	import shelve
 except ImportError:
 	raise ex.ModulesNotFound()
 
@@ -18,8 +19,11 @@ class Explorer(object):
 		#username and password to start the mysql server
 		self.root_user = root_username
 		self.root_pass = root_password
+		self.max_table_len = 5
+		self.max_row_len = 10
 		#start the mysql server
-		self.start_server()
+		#self.start_server()
+		self.start_info_db()
 		#create the connection
 		#using a try inside a try
 		#because for some reason if i use time.sleep after the start server it fails
@@ -55,21 +59,18 @@ class Explorer(object):
 
 		'''
 		#using try except to catch the mysql errors that might be raised
-		#currently all the raised error at this level are catched and TableExist error is raised
 		try:
-			#statement to get the number of tables currently in the db
-			desc_statement = 'SHOW TABLES'
-			self.cursor.execute(desc_statement)
-			table_num = [x[0] for x in self.cursor.fetchall()]
-			#check the number of tables in the database
-			#currently the  max number is 5 to avoid displaying issues
-			#Perhaps usa a var instead of hardcoding the number ?
-			if len(table_num) < 5:
+			if info_dict['table_name'] in self.tables:
+				raise ex.TableExists(info_dict['table_name'])
+			elif len(self.tables) >= self.max_table_len:
+				raise ex.MaxTableNumberReached(len(self.tables))
+			else:
 				#use a var to determain if its the last value and weather a comma should be added
 				comma_var = 2
 				#create the initial part of the statement using format because these arguments
 				#cannot be added with the standard argument passing to the execute function
 				#it's not safe but currently i dont know any other way
+				self.tables[info_dict['table_name']] = {'rows':0, 'cols' : len(info_dict.keys()) - 1}
 				statement_start = 'CREATE TABLE {table_name} ('.format(table_name = info_dict['table_name'])
 				statement_end = ')'
 				statement_mid = ''
@@ -102,11 +103,8 @@ class Explorer(object):
 				self.cursor.execute(final_statement)
 				#returning the statement for displaying
 				return final_statement
-			else:
-				raise ex.MaxTableNumberReached(5)
 		except MySQLdb.Error as e:
 			print e
-			raise ex.TableExists(info_dict['name'])
 
 	def view_table_info(self,table_name):
 		#query the db for the table info
@@ -132,7 +130,6 @@ class Explorer(object):
 		'''table_name - string 
 			values - list of values to be entered in the table
 		'''
-		#get all the rows in that table because we need their len, check todo.txt GLOBAL
 		all_values_statement = 'SELECT * FROM {}'.format(table_name)
 		self.cursor.execute(all_values_statement)
 		if len(self.cursor.fetchall()) < 10:
@@ -155,6 +152,7 @@ class Explorer(object):
 				#prepare and execute the statement
 				final_statement = start_statement+column_names+mid_statement+values+end_statement
 				self.cursor.execute(final_statement)
+				self.tables[table_name]['rows'] += 1
 				#return the statement for displaying
 				return final_statement
 			except MySQLdb.Error as e:
@@ -190,7 +188,7 @@ class Explorer(object):
 					values_list[index] = 'NULL'
 
 		#ccreating a list containing the indeces of the values that are int or are Null
-		how_many = [x for x in xrange(len(types_list)) if types_list[x].startswith('int') or values_list[x] == 'NULL']
+		how_many = [x for x in xrange(len(types_list)) if types_list[x].lower().startswith('int') or values_list[x] == 'NULL']
 		#using the how_many list to determine if there should be quotes around the values or not
 		values_list = ['"'+value+'"' if values_list.index(value) not in how_many else value for value in values_list]
 		return values_list
@@ -199,7 +197,6 @@ class Explorer(object):
 		''' table_name - string
 			option - if its not none, it will return the types and the col names
 					else it will return only the names
-			CHECK todo.txt GLOBAL > 1.1
 		'''
 		statement = 'DESCRIBE {}'.format(table_name)
 		self.cursor.execute(statement)
@@ -211,7 +208,6 @@ class Explorer(object):
 		return columns
 
 	def show_tables(self):
-		''' check the todo.txt GLOBAL > 1.1 '''
 		statement = 'SHOW TABLES'
 		self.cursor.execute(statement)
 		to_return = {'Name': [x[0] for x in self.cursor.fetchall()]}
@@ -239,12 +235,16 @@ class Explorer(object):
 					to_return[column_info[index][0]].append(row[index])
 				except KeyError:
 					to_return[column_info[index][0]] = [row[index]]
+		if len(to_return) == 0:
+			for col in column_info:
+				to_return[col[0]] = []
 		to_return['query'] = statement
 		return to_return
 
 	def delete_table(self,table_name):
 		statement = 'DROP TABLE {}'.format(table_name)
 		self.cursor.execute(statement)
+		del self.tables[table_name]
 		return statement
 
 	def alter_table(self,option,table_name,col_info):
@@ -256,7 +256,6 @@ class Explorer(object):
 		#prepare the statements based on the option chosen
 		if option == 'add':
 			#get the column names
-			#check todo.txt GLOBAL 
 			columns = self.get_columns(table_name)
 			#if the name is in the list or the number of cols is 5, we raise an error
 			if col_info[0] in columns:
@@ -276,6 +275,10 @@ class Explorer(object):
 			#table with only one col cant be deleted
 			elif e[0] == 1090:
 				raise ex.OneColLeft()
+		if option == 'add':
+			self.tables[table_name]['cols'] += 1
+		elif option == 'drop':
+			self.tables[table_name]['cols'] -= 1
 		return statement
 
 	def get_values(self,table_name,column_name):
@@ -286,7 +289,6 @@ class Explorer(object):
 
 	def update(self,table_name,col_name,new_var,old_var):
 		#get the column names and compare them to the one passed as argument
-		#check todo.txt GLOBAL
 		desc_statement = 'DESCRIBE {}'.format(table_name)
 		self.cursor.execute(desc_statement)
 		col_info = self.cursor.fetchall()
@@ -347,3 +349,16 @@ class Explorer(object):
 			process.sendline(self.root_pass)
 		except pexpect.EOF:
 			pass
+
+	def start_info_db(self):
+		database = shelve.open('info_db')
+		if database:
+			self.tables = database['tables']
+		else:
+			self.tables = {}
+		database.close()
+
+	def stop_info_db(self):
+		database = shelve.open('info_db')
+		database['tables'] = self.tables
+		database.close()
